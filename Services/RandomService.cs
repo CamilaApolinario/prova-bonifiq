@@ -2,15 +2,16 @@
 {
 	public class RandomService
 	{
-		int seed;
+        private Random random;
 		public RandomService()
 		{
-			seed = Guid.NewGuid().GetHashCode();
-		}
+            int seed = new Random().Next();
+            random = new Random(seed);
+        }
 		public int GetRandom()
 		{
-			return new Random(seed).Next(100);
-		}
+            return random.Next(100);
+        }
 
 	}
 }
