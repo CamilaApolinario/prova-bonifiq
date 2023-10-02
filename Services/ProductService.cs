@@ -1,21 +1,20 @@
 ﻿using ProvaPub.Models;
-using ProvaPub.Repository;
+using ProvaPub.Services.Interfaces;
 
 namespace ProvaPub.Services
 {
-	public class ProductService
+    public class ProductService : IProductService
 	{
-		TestDbContext _ctx;
+        private readonly IPaginationService _pagination;
 
-		public ProductService(TestDbContext ctx)
-		{
-			_ctx = ctx;
-		}
+        public ProductService(IPaginationService pagination)
+        {       
+            _pagination = pagination;
+        }
 
-		public ProductList  ListProducts(int page)
-		{
-			return new ProductList() {  HasNext=false, TotalCount =10, Products = _ctx.Products.ToList() };
-		}
-
-	}
+        public ListInfo<Product> ListProducts(int page)
+        {
+            return _pagination.ListEntities<Product>(page);
+        }
+    }
 }

@@ -12,6 +12,5 @@
 		{
             return random.Next(100);
         }
-
 	}
 }

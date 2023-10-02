@@ -1,46 +1,62 @@
-﻿using Microsoft.EntityFrameworkCore;
-using ProvaPub.Models;
-using ProvaPub.Repository;
+﻿using ProvaPub.Models;
+using ProvaPub.Repositories.Interfaces;
+using ProvaPub.Services.Interfaces;
 
 namespace ProvaPub.Services
 {
-    public class CustomerService
+    public class CustomerService : ICustomerService
     {
-        TestDbContext _ctx;
+        private readonly ICustomerRepository _repository;
+        private readonly IPaginationService _pagination;
 
-        public CustomerService(TestDbContext ctx)
+        public CustomerService(ICustomerRepository repository, IPaginationService pagination)
         {
-            _ctx = ctx;
+            _repository = repository;
+            _pagination = pagination;
         }
 
-        public CustomerList ListCustomers(int page)
+        public ListInfo<Customer> ListCustomers(int page)
         {
-            return new CustomerList() { HasNext = false, TotalCount = 10, Customers = _ctx.Customers.ToList() };
+            return _pagination.ListEntities<Customer>(page);
         }
 
-        public async Task<bool> CanPurchase(int customerId, decimal purchaseValue)
+        public PurchaseResult CanPurchase(int customerId, decimal purchaseValue)
         {
-            if (customerId <= 0) throw new ArgumentOutOfRangeException(nameof(customerId));
+            var customer = _repository.GetById(customerId);
+            if (customer == null)
+            {
+                return PurchaseResult.Fail($"Customer Id {customerId} does not exist");
+            }
 
-            if (purchaseValue <= 0) throw new ArgumentOutOfRangeException(nameof(purchaseValue));
+            if (purchaseValue <= 0)
+            {
+                return PurchaseResult.Fail("Invalid purchase value");
+            }
 
-            //Business Rule: Non registered Customers cannot purchase
-            var customer = await _ctx.Customers.FindAsync(customerId);
-            if (customer == null) throw new InvalidOperationException($"Customer Id {customerId} does not exists");
+            if (HasPurchasedThisMonth(customerId))
+            {
+                return PurchaseResult.Fail("Customer has already purchased this month");
+            }
 
-            //Business Rule: A customer can purchase only a single time per month
+            if (IsFirstPurchase(customerId) && purchaseValue > 100)
+            {
+                return PurchaseResult.Fail("First purchase must be <= 100");
+            }
+
+            return PurchaseResult.Success();
+        }
+
+        public bool HasPurchasedThisMonth(int customerId)
+        {
             var baseDate = DateTime.UtcNow.AddMonths(-1);
-            var ordersInThisMonth = await _ctx.Orders.CountAsync(s => s.CustomerId == customerId && s.OrderDate >= baseDate);
-            if (ordersInThisMonth > 0)
-                return false;
-
-            //Business Rule: A customer that never bought before can make a first purchase of maximum 100,00
-            var haveBoughtBefore = await _ctx.Customers.CountAsync(s => s.Id == customerId && s.Orders.Any());
-            if (haveBoughtBefore == 0 && purchaseValue > 100)
-                return false;
-
-            return true;
+            var ordersInThisMonth = _repository.GetOrdersInThisMonth(customerId, baseDate);
+            return ordersInThisMonth > 0;
         }
 
+        public bool IsFirstPurchase(int customerId)
+        {
+            var haveBoughtBefore = _repository.GetHaveBoughtBefore(customerId);
+            return haveBoughtBefore == 0;
+        }
     }
 }
